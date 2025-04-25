@@ -11,6 +11,14 @@ exports.createProject = async (req, res) => {
     const project = new Project({ name, type, description, image, userId });
     await project.save(); 
 
+    //Create sections for the project
+     const sections = [
+      { name: 'To Do', projectId: project._id },
+      { name: 'In Progress', projectId: project._id },
+      { name: 'Done', projectId: project._id }
+    ];
+    await Section.insertMany(sections);
+    
     //Add the creator as a member
     project.membersOfProject.push(userId ); 
     await project.save();
