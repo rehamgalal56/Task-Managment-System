@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const authRoutes = require("./routes/auth.routes");
 const projectRoutes = require("./routes/project.routes");
+const teamRoutes = require("./routes/team.routes");
 const sectionRoutes = require("./routes/Section.routes");
 
 const logger = require("./utils/logger");
@@ -20,6 +21,7 @@ mongoose
 
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
+app.use("/api/teams", teamRoutes);
 app.use("/api/sections", sectionRoutes);
 
 app.listen(process.env.PORT, () => {
