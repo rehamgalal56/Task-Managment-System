@@ -10,6 +10,7 @@ exports.signup = async (req, res) => {
     // Return validation error messages if validation fails
     return res.status(400).json({ error: error.message });
   }
+  
   try {
     const { email, fullName, password, confirmPassword } = req.body;
 
