@@ -6,13 +6,23 @@ const userRoutes = require("./routes/user.routes");
 const projectRoutes = require("./routes/project.routes");
 const teamRoutes = require("./routes/team.routes");
 const sectionRoutes = require("./routes/Section.routes");
+const taskRoutes = require("./routes/task.routes");
 
 const logger = require("./utils/logger");
 
+const cors = require("cors");
 
 dotenv.config();
 const app = express();
 
+app.use(
+  cors({
+    origin: "http://localhost:5174",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 mongoose
@@ -25,6 +35,7 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/teams", teamRoutes);
 app.use("/api/sections", sectionRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.listen(process.env.PORT, () => {
   logger(`Server running on port ${process.env.PORT}`);
