@@ -1,4 +1,5 @@
 const Project = require('../models/project.model');
+const Section = require('../models/Section.model');
 const ProjectDTO = require('../dtos/project.dto');
 const MemberDTO = require('../dtos/member.dto');
 
@@ -9,10 +10,10 @@ exports.createProject = async (req, res) => {
 
     // Create the project
     const project = new Project({ name, type, description, image, userId });
-    await project.save(); 
+    await project.save();
 
-    //Create sections for the project
-     const sections = [
+    // Step 3: Create sections for the project
+    const sections = [
       { name: 'To Do', projectId: project._id },
       { name: 'In Progress', projectId: project._id },
       { name: 'Done', projectId: project._id }
@@ -101,7 +102,3 @@ exports.getProjectMembers = async (req, res) => {
       res.status(500).json({ error: err.message });
     }
   };
-  
-
-
- 
