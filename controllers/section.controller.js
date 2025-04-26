@@ -30,8 +30,10 @@ exports.getSections = async (req, res) => {
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
+    
+    // Find sections and populate tasks
+    const sections = await Section.find({ projectId }).populate('tasks');
 
-    const sections = await Section.find({ projectId });
     res.json(SectionDTO.list(sections)); // Use static list method
   } catch (error) {
     res.status(500).json({ error: error.message });
