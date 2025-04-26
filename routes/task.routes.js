@@ -5,5 +5,7 @@ const authMiddleware = require("../middleware/auth.middleware");
 
 router.post("/add", authMiddleware, taskController.createTask);
 router.delete("/:id", authMiddleware, taskController.deleteTask);
+router.get("/:taskId", authMiddleware, taskController.getTaskById);
+router.put("/move", authMiddleware, taskController.moveTaskToSection);
 
 module.exports = router;

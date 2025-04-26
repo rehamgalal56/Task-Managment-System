@@ -83,3 +83,48 @@ exports.deleteTask = async (req, res) => {
     res.status(500).json({ msg: "Server error", error: err.message });
   }
 };
+exports.getTaskById = async (req, res) => {
+  const { taskId } = req.params;
+
+  try {
+    const task = await Task.findById(taskId)
+      .populate("project")
+      .populate("section")
+      .populate("assignedTo"); // populate assigned users
+
+    if (!task) return res.status(404).json({ msg: "Task not found" });
+
+    res.status(200).json(new TaskDTO(task)); // 👈 use new DTO class
+  } catch (err) {
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+};
+exports.moveTaskToSection = async (req, res) => {
+  const { taskId, newSectionId } = req.body;
+
+  try {
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ message: "Task not found" });
+
+    const oldSectionId = task.sectionId;
+
+    task.sectionId = newSectionId;
+    await task.save();
+
+    await Section.findByIdAndUpdate(oldSectionId, {
+      $pull: { tasks: task._id },
+    });
+
+    await Section.findByIdAndUpdate(newSectionId, {
+      $addToSet: { tasks: task._id },
+    });
+
+    res
+      .status(200)
+      .json({ message: "Task moved successfully", task: new TaskDTO(task) }); // 👈 wrap moved task
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Something went wrong", error: err.message });
+  }
+};
