@@ -9,4 +9,7 @@ router.post('/join-by-code', authMiddleware, projectController.joinProjectByCode
 router.get('/members/:projectId', authMiddleware, projectController.getProjectMembers);
 router.get('/code/:projectId', authMiddleware, projectController.getCode);
 
+
+router.delete('/leave/:projectId', authMiddleware, projectController.leaveProject);
+router.delete('/:projectId', authMiddleware, projectController.deleteProject);
 module.exports = router;

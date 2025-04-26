@@ -102,3 +102,50 @@ exports.getProjectMembers = async (req, res) => {
       res.status(500).json({ error: err.message });
     }
   };
+
+  
+exports.leaveProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user.id; // Get the logged-in user's ID from JWT token
+
+    // Find the project
+    const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    // Check if the user is part of the project
+    if (!project.membersOfProject.includes(userId)) {
+      return res.status(400).json({ error: 'You are not a member of this project' });
+    }
+
+    // Remove the user from the project
+    project.membersOfProject = project.membersOfProject.filter(member => member.toString() !== userId);
+
+    await project.save();
+
+    res.json({ message: 'You have left the project' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.deleteProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    // Find the project and ensure the user is the owner
+    const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    
+    if (project.userId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized action. You must be the owner of the project' });
+    }
+
+    // Delete the project
+    await Project.findByIdAndDelete(projectId); 
+
+    res.json({ message: 'Project deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
