@@ -14,6 +14,7 @@ const SectionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+    // tasks of each section
   tasks: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Task'
