@@ -128,3 +128,101 @@ exports.moveTaskToSection = async (req, res) => {
       .json({ message: "Something went wrong", error: err.message });
   }
 };
+
+
+
+exports.assignTask = async (req, res) => {
+  const { id, assigneeId } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const task = await Task.findById(id).populate("project");
+    if (!task) return res.status(404).json({ msg: "Task not found" });
+
+    const project = await Project.findById(task.project);
+    if (!project) return res.status(404).json({ msg: "Project not found" });
+
+    if (!isUserInProject(project, userId))
+      return res.status(403).json({ msg: "You are not a member of this project" });
+
+    const isCreator = task.createdBy.toString() === userId;
+    const isManager = isProjectManager(project, userId);
+    if (!isCreator && !isManager)
+      return res.status(403).json({ msg: "Only creator or manager can assign" });
+
+    if (!isUserInProject(project, assigneeId))
+      return res.status(400).json({ msg: "Assignee must be in the project" });
+
+    task.assignedTo = assigneeId;
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id).populate("assignedTo");
+
+    res.status(200).json(new TaskDTO(populatedTask)); // 👈
+  } catch (err) {
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+};
+
+exports.editTask = async (req, res) => {
+  const {
+    id,
+    name,
+    description,
+    startDate,
+    dueDate,
+    isCompleted,
+    assigneeUsers
+  } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const task = await Task.findById(id).populate("project");
+    if (!task) return res.status(404).json({ msg: "Task not found" });
+
+    const project = await Project.findById(task.project);
+    if (!project) return res.status(404).json({ msg: "Project not found" });
+
+    if (!isUserInProject(project, userId))
+      return res.status(403).json({ msg: "You are not a member of this project" });
+
+    const isCreator = task.createdBy.toString() === userId;
+    const isManager = isProjectManager(project, userId);
+    if (!isCreator && !isManager)
+      return res.status(403).json({ msg: "Only creator or manager can edit" });
+
+    if (assigneeUsers && assigneeUsers.length > 0) {
+      for (const element of assigneeUsers) {
+        if (!isUserInProject(project, element.userId)) {
+          return res.status(400).json({ msg: "All assignees must be project members" });
+        }
+      }
+    }
+
+    if (name) task.title = name; // task.title, not task.name
+    if (description) task.description = description;
+    if (startDate) task.startDate = new Date(startDate);
+    if (dueDate) task.dueDate = new Date(dueDate);
+    if (typeof isCompleted === 'boolean') task.isCompleted = isCompleted;
+
+    // Remove existing assignees
+    await Assignee.deleteMany({ taskItemId: id });
+
+    // Add new assignees
+    if (assigneeUsers && assigneeUsers.length > 0) {
+      const assigneeDocs = assigneeUsers.map(a => ({
+        userId: a.userId,
+        taskItemId: id
+      }));
+      await Assignee.insertMany(assigneeDocs);
+    }
+
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id).populate("assignedTo");
+
+    res.status(200).json(new TaskDTO(populatedTask)); // 👈
+  } catch (err) {
+    res.status(500).json({ msg: "Server error", error: err.message });
+  }
+};
