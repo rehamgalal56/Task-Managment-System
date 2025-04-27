@@ -1,14 +1,14 @@
+const ApiError = require('../utils/APiError');
 const validatorMiddleware = (schema) => {
   return (req, res, next) => {
     const { error } = schema(req.body);
-
-    if (error) {
-      const errors = error.message;
-      return res.status(400).json({ errors });
+    
+    if (error) { 
+      return next(new ApiError(error.message, 400)); 
     }
-
-    next();
+    next(); 
   };
 };
 
-module.exports = validatorMiddleware;
+
+module.exports =  validatorMiddleware ;
