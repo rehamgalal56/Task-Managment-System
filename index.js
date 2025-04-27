@@ -9,6 +9,8 @@ const sectionRoutes = require("./routes/Section.routes");
 const taskRoutes = require("./routes/task.routes");
 
 const logger = require("./utils/logger");
+const errorHandler = require('./middleware/errorHandler');
+const ApiError = require('./utils/APiError');
 
 const cors = require("cors");
 
@@ -37,6 +39,11 @@ app.use("/api/sections", sectionRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/tasks", taskRoutes);
 
+app.all(/.*/, (req, res, next) => {
+    next(new ApiError(`Can't find this route ${req.originalUrl}`,404));
+  });
+    
+app.use(errorHandler);
 app.listen(process.env.PORT, () => {
   logger(`Server running on port ${process.env.PORT}`);
 });
