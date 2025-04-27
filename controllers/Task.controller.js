@@ -1,170 +1,167 @@
-const Task = require("../models/Task.model");
+const Task = require("../models/task.model");
+const Section = require("../models/section.model");
 const Project = require("../models/project.model");
-const Section = require("../models/Section.model");
+const TaskDTO = require("../dtos/task.dto");
+const ApiError = require("../utils/ApiError");
+const asyncHandler = require("express-async-handler");
 const { isUserInProject, isProjectManager } = require("../utils/validators");
 
-const TaskDTO = require("../dtos/task.dto");
+exports.getTask = asyncHandler(async (req, res, next) => {
+  const { taskId } = req.params;
 
-exports.createTask = async (req, res) => {
+  const task = await Task.findById(taskId)
+    .populate("project")
+    .populate("section")
+    .populate("assignedTo");
+
+  if (!task) {
+    return next(new ApiError("Task not found", 404));
+  }
+
+  const taskDTO = new TaskDTO(task);
+  res.json(taskDTO);
+});
+
+exports.createTask = asyncHandler(async (req, res, next) => {
   const { title, description, projectId, sectionId } = req.body;
   const userId = req.user.id;
 
-  try {
-    const project = await Project.findById(projectId);
-    if (!isUserInProject(project, userId))
-      return res
-        .status(403)
-        .json({ msg: "You are not a member of this project" });
-    if (!project) return res.status(404).json({ msg: "Project not found" });
-
-    const section = await Section.findOne({ _id: sectionId, projectId });
-    if (!section)
-      return res
-        .status(404)
-        .json({ msg: "Section not found in this project " });
-
-    const task = new Task({
-      title,
-      description,
-      project: projectId,
-      section: sectionId,
-      createdBy: userId,
-    });
-
-    section.tasks.push(task);
-
-    await task.save();
-    await section.save();
-
-    res.status(201).json(new TaskDTO(task));
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
+  const project = await Project.findById(projectId);
+  if (!project) {
+    return next(new ApiError("Project not found", 404));
   }
-};
 
-exports.deleteTask = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-
-  try {
-    const task = await Task.findById(id).populate("project");
-    if (!task) return res.status(404).json({ msg: "Task not found" });
-
-    const project = await Project.findById(task.project);
-    if (!project) return res.status(404).json({ msg: "Project not found" });
-
-    if (!isUserInProject(project, userId))
-      return res
-        .status(403)
-        .json({ msg: "You are not a member of this project" });
-
-    const isCreator = task.createdBy.toString() === userId;
-    const isManager = isProjectManager(project, userId);
-
-    if (!isCreator && !isManager)
-      return res
-        .status(403)
-        .json({
-          msg: "Only the task creator or project manager can delete this task",
-        });
-
-    await task.deleteOne();
-
-    res.status(200).json({
-      msg: "Task deleted successfully",
-      deletedTask: {
-        id: task._id,
-        title: task.title,
-        section: task.section,
-        project: task.project._id,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
+  if (!isUserInProject(project, userId)) {
+    return next(new ApiError("You are not a member of this project", 403));
   }
-};
-exports.getTaskById = async (req, res) => {
-  const { taskId } = req.params;
 
-  try {
-    const task = await Task.findById(taskId)
-      .populate("project")
-      .populate("section")
-      .populate("assignedTo"); // populate assigned users
-
-    if (!task) return res.status(404).json({ msg: "Task not found" });
-
-    res.status(200).json(new TaskDTO(task)); // 👈 use new DTO class
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
+  const section = await Section.findOne({ _id: sectionId, projectId });
+  if (!section) {
+    return next(new ApiError("Section not found in this project", 404));
   }
-};
-exports.moveTaskToSection = async (req, res) => {
+
+  const task = new Task({
+    title,
+    description,
+    project: projectId,
+    section: sectionId,
+    createdBy: userId,
+  });
+
+  section.tasks.push(task);
+
+  await task.save();
+  await section.save();
+
+  const taskDTO = new TaskDTO(task);
+  res.status(201).json(taskDTO);
+});
+
+exports.moveTask = asyncHandler(async (req, res, next) => {
   const { taskId, newSectionId } = req.body;
 
-  try {
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ message: "Task not found" });
-
-    const oldSectionId = task.sectionId;
-
-    task.sectionId = newSectionId;
-    await task.save();
-
-    await Section.findByIdAndUpdate(oldSectionId, {
-      $pull: { tasks: task._id },
-    });
-
-    await Section.findByIdAndUpdate(newSectionId, {
-      $addToSet: { tasks: task._id },
-    });
-
-    res
-      .status(200)
-      .json({ message: "Task moved successfully", task: new TaskDTO(task) }); // 👈 wrap moved task
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Something went wrong", error: err.message });
+  const task = await Task.findById(taskId);
+  if (!task) {
+    return next(new ApiError("Task not found", 404));
   }
-};
 
+  const oldSectionId = task.section;
+  task.section = newSectionId;
+  await task.save();
 
+  await Section.findByIdAndUpdate(oldSectionId, {
+    $pull: { tasks: task._id },
+  });
 
-exports.assignTask = async (req, res) => {
+  await Section.findByIdAndUpdate(newSectionId, {
+    $addToSet: { tasks: task._id },
+  });
+
+  const taskDTO = new TaskDTO(task);
+  res.json(taskDTO);
+});
+
+exports.assignTask = asyncHandler(async (req, res, next) => {
   const { id, assigneeId } = req.body;
   const userId = req.user.id;
 
-  try {
-    const task = await Task.findById(id).populate("project");
-    if (!task) return res.status(404).json({ msg: "Task not found" });
-
-    const project = await Project.findById(task.project);
-    if (!project) return res.status(404).json({ msg: "Project not found" });
-
-    if (!isUserInProject(project, userId))
-      return res.status(403).json({ msg: "You are not a member of this project" });
-
-    const isCreator = task.createdBy.toString() === userId;
-    const isManager = isProjectManager(project, userId);
-    if (!isCreator && !isManager)
-      return res.status(403).json({ msg: "Only creator or manager can assign" });
-
-    if (!isUserInProject(project, assigneeId))
-      return res.status(400).json({ msg: "Assignee must be in the project" });
-
-    task.assignedTo = assigneeId;
-    await task.save();
-
-    const populatedTask = await Task.findById(task._id).populate("assignedTo");
-
-    res.status(200).json(new TaskDTO(populatedTask)); // 👈
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
+  const task = await Task.findById(id).populate("project");
+  if (!task) {
+    return next(new ApiError("Task not found", 404));
   }
-};
 
-exports.editTask = async (req, res) => {
+  const project = await Project.findById(task.project);
+  if (!project) {
+    return next(new ApiError("Project not found", 404));
+  }
+
+  if (!isUserInProject(project, userId)) {
+    return next(new ApiError("You are not a member of this project", 403));
+  }
+
+  const isCreator = task.createdBy.toString() === userId;
+  const isManager = isProjectManager(project, userId);
+
+  if (!isCreator && !isManager) {
+    return next(new ApiError("Only creator or manager can assign", 403));
+  }
+
+  if (!isUserInProject(project, assigneeId)) {
+    return next(new ApiError("Assignee must be a member of the project", 400));
+  }
+
+  task.assignedTo = assigneeId;
+  await task.save();
+
+  const populatedTask = await Task.findById(task._id).populate("assignedTo");
+  const taskDTO = new TaskDTO(populatedTask);
+
+  res.json(taskDTO);
+});
+
+exports.deleteTask = asyncHandler(async (req, res, next) => {
+  const { taskId } = req.params;
+  const userId = req.user.id;
+
+  const task = await Task.findById(taskId).populate("project");
+  if (!task) {
+    return next(new ApiError("Task not found", 404));
+  }
+
+  const project = await Project.findById(task.project);
+  if (!project) {
+    return next(new ApiError("Project not found", 404));
+  }
+
+  if (!isUserInProject(project, userId)) {
+    return next(new ApiError("You are not a member of this project", 403));
+  }
+
+  const isCreator = task.createdBy.toString() === userId;
+  const isManager = isProjectManager(project, userId);
+
+  if (!isCreator && !isManager) {
+    return next(
+      new ApiError(
+        "Only the creator or project manager can delete this task",
+        403
+      )
+    );
+  }
+
+  await task.deleteOne();
+
+  res.json({
+    msg: "Task deleted successfully",
+    deletedTask: {
+      id: task._id,
+      title: task.title,
+      section: task.section,
+      project: task.project._id,
+    },
+  });
+});
+exports.editTask = asyncHandler(async (req, res, next) => {
   const {
     id,
     name,
@@ -172,57 +169,63 @@ exports.editTask = async (req, res) => {
     startDate,
     dueDate,
     isCompleted,
-    assigneeUsers
+    assigneeUsers,
   } = req.body;
+
   const userId = req.user.id;
 
-  try {
-    const task = await Task.findById(id).populate("project");
-    if (!task) return res.status(404).json({ msg: "Task not found" });
-
-    const project = await Project.findById(task.project);
-    if (!project) return res.status(404).json({ msg: "Project not found" });
-
-    if (!isUserInProject(project, userId))
-      return res.status(403).json({ msg: "You are not a member of this project" });
-
-    const isCreator = task.createdBy.toString() === userId;
-    const isManager = isProjectManager(project, userId);
-    if (!isCreator && !isManager)
-      return res.status(403).json({ msg: "Only creator or manager can edit" });
-
-    if (assigneeUsers && assigneeUsers.length > 0) {
-      for (const element of assigneeUsers) {
-        if (!isUserInProject(project, element.userId)) {
-          return res.status(400).json({ msg: "All assignees must be project members" });
-        }
-      }
-    }
-
-    if (name) task.title = name; // task.title, not task.name
-    if (description) task.description = description;
-    if (startDate) task.startDate = new Date(startDate);
-    if (dueDate) task.dueDate = new Date(dueDate);
-    if (typeof isCompleted === 'boolean') task.isCompleted = isCompleted;
-
-    // Remove existing assignees
-    await Assignee.deleteMany({ taskItemId: id });
-
-    // Add new assignees
-    if (assigneeUsers && assigneeUsers.length > 0) {
-      const assigneeDocs = assigneeUsers.map(a => ({
-        userId: a.userId,
-        taskItemId: id
-      }));
-      await Assignee.insertMany(assigneeDocs);
-    }
-
-    await task.save();
-
-    const populatedTask = await Task.findById(task._id).populate("assignedTo");
-
-    res.status(200).json(new TaskDTO(populatedTask)); // 👈
-  } catch (err) {
-    res.status(500).json({ msg: "Server error", error: err.message });
+  const task = await Task.findById(id).populate("project");
+  if (!task) {
+    return next(new ApiError("Task not found", 404));
   }
-};
+
+  const project = await Project.findById(task.project);
+  if (!project) {
+    return next(new ApiError("Project not found", 404));
+  }
+
+  if (!isUserInProject(project, userId)) {
+    return next(new ApiError("You are not a member of this project", 403));
+  }
+
+  const isCreator = task.createdBy.toString() === userId;
+  const isManager = isProjectManager(project, userId);
+
+  if (!isCreator && !isManager) {
+    return next(
+      new ApiError("Only the task creator or project manager can edit", 403)
+    );
+  }
+
+  for (const assignee of assigneeUsers) {
+    if (!isUserInProject(project, assignee.userId)) {
+      return next(
+        new ApiError("Assignee must be a member of this project", 400)
+      );
+    }
+  }
+
+  if (name) task.title = name;
+  if (description) task.description = description;
+  if (startDate) task.startDate = new Date(startDate);
+  if (dueDate) task.dueDate = new Date(dueDate);
+  if (typeof isCompleted === "boolean") task.isCompleted = isCompleted;
+
+  // Remove old assignees
+  await Assignee.deleteMany({ taskItemId: id });
+
+  // Add new assignees
+  if (assigneeUsers && assigneeUsers.length > 0) {
+    const assigneeDocs = assigneeUsers.map((a) => ({
+      userId: a.userId,
+      taskItemId: id,
+    }));
+    await Assignee.insertMany(assigneeDocs);
+  }
+
+  await task.save();
+
+  const populatedTask = await Task.findById(task._id).populate("assignedTo");
+
+  res.status(200).json(new TaskDTO(populatedTask));
+});
