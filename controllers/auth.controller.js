@@ -2,73 +2,64 @@ const User = require('../models/user.model');
 const { validateUserSignup } = require('../utils/signup.validators');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const APIError = require('../utils/APiError'); 
+const asyncHandler = require('express-async-handler');
 
-exports.signup = async (req, res) => {
-  // Validate request body using Joi schema
-  const { error } = validateUserSignup(req.body);
-  if (error) {
-    // Return validation error messages if validation fails
-    return res.status(400).json({ error: error.message });
+
+exports.signup = asyncHandler(async (req, res, next) => {
+  const { password, confirmPassword, email, fullName, jobRole, gender, birthDate, aboutMe } = req.body;
+
+  if (password !== confirmPassword) {
+    return next(new APIError('Passwords do not match', 400));
   }
+
   
-  try {
-    const { email, fullName, password, confirmPassword } = req.body;
-
-    // Ensure password and confirmPassword match
-    if (password !== confirmPassword) {
-      return res.status(400).json({ error: "Passwords do not match" });
-    }
-
-    // Hash the password using bcrypt
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create a new user instance
-    const user = new User({
-      fullName,
-      email,
-      password: hashedPassword,
-    });
-
-    await user.save();
-
-    // Generate a JWT token 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // Return the token 
-    res.status(201).json({ token });
-
-  } catch (err) {
-    console.error('Signup Error:', err);
-    res.status(500).json({ error: 'An error occurred during signup. Please try again later.' });
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return next(new APIError('Email already registered', 400));
   }
-};
 
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    // Find user by email
-    const user = await User.findOne({ email });
+  const hashedPassword = await bcrypt.hash(password, 10);
 
-    //  If user doesn't exist or password is incorrect, return 401 Unauthorized
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+  const user = new User({
+    username: fullName,
+    password: hashedPassword,
+    fullName,
+    email,
+    image: req.file?.path,
+    jobRole,
+    gender,
+    birthDate,
+    aboutMe,
+  });
 
-    // Generate JWT token 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  await user.save();
 
-    // Send token in response
-    res.json({ token });
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '3d' });
 
-  } catch (err) {
-    console.error('Login Error:', err);
-    res.status(500).json({ error: 'An error occurred during login. Please try again later.' });
+  res.status(201).json({ token });
+});
+
+
+exports.login = asyncHandler(async (req, res, next) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return next(new APIError('Invalid credentials', 401));
   }
-};
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    return next(new APIError('Invalid credentials', 401));
+  }
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '3h' });
+
+  res.json({ token });
+});
 
 
-exports.logout = (req, res) => {
-  // For stateless JWT, logout can be handled on client side
+exports.logout = asyncHandler(async (req, res, next) => {
   res.json({ message: 'Logged out (client-side)' });
-};
+});
