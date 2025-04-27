@@ -1,8 +1,8 @@
 const Task = require("../models/task.model");
-const Section = require("../models/section.model");
+const Section = require("../models/Section.model");
 const Project = require("../models/project.model");
 const TaskDTO = require("../dtos/task.dto");
-const ApiError = require("../utils/ApiError");
+const ApiError = require("../utils/APiError");
 const asyncHandler = require("express-async-handler");
 const { isUserInProject, isProjectManager } = require("../utils/validators");
 
