@@ -202,7 +202,7 @@ console.log('====================================');
 for (const assignee of assigneeUsers) {
   if (!isUserInProject(project, assignee.UserId)) {
     return next(
-      new ApiError(`User ${assignee.UserId} is not a project member`, 400)
+      new ApiError(`User is not a project member`, 400)
     );
   }
 }
