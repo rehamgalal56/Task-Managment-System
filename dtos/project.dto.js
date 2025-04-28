@@ -4,7 +4,7 @@ class ProjectDTO {
       this.name = project.name;
       this.type = project.type;
       this.description = project.description;
-      this.createdBy = project.userId.username; 
+      this.createdBy = project.userId.fullName; 
       this.userId = project.userId._id;          // creator's ID
     }
   }
