@@ -23,14 +23,14 @@ exports.createProject = asyncHandler(async (req, res) => {
   project.membersOfProject.push(userId);
   await project.save();
 
-  const populatedProject = await Project.findById(project._id).populate('userId', 'username');
+  const populatedProject = await Project.findById(project._id).populate('userId', 'fullName');
   const projectDTO = new ProjectDTO(populatedProject);
   res.status(201).json(projectDTO);
 });
 
 // Get all projects the user is a member of
 exports.getMyProjects = asyncHandler(async (req, res) => {
-  const projects = await Project.find({ membersOfProject: req.user.id }).populate('userId', 'username');
+  const projects = await Project.find({ membersOfProject: req.user.id }).populate('userId', 'fullName');
   const projectsDTO = projects.map(project => new ProjectDTO(project));
   res.json(projectsDTO);
 });
@@ -46,7 +46,7 @@ exports.joinProjectByCode = asyncHandler(async (req, res) => {
   const { Code } = req.body;
   const userId = req.user.id;
 
-  const project = await Project.findById(Code).populate('userId', 'username');
+  const project = await Project.findById(Code).populate('userId', 'fullName');
   if (!project) throw new ApiError('Project not found', 404);
 
   if (project.membersOfProject.includes(userId)) {
