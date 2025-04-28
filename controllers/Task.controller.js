@@ -120,12 +120,12 @@ exports.assignTask = asyncHandler(async (req, res, next) => {
 });
 
 exports.deleteTask = asyncHandler(async (req, res, next) => {
-  const { taskId } = req.params;
+  const { id}  = req.params;
   const userId = req.user.id;
 
-  const task = await Task.findById(taskId).populate("project");
+  const task = await Task.findById(id).populate("project");
   if (!task) {
-    return next(new ApiError("Task not found", 404));
+    return next(new ApiError(`Task not found `, 404));
   }
 
   const project = await Project.findById(task.project);
@@ -173,7 +173,9 @@ exports.editTask = asyncHandler(async (req, res, next) => {
   } = req.body;
 
   const userId = req.user.id;
-
+console.log('================hhh====================');
+console.log(req.body);
+console.log('====================================');
   const task = await Task.findById(id).populate("project");
   if (!task) {
     return next(new ApiError("Task not found", 404));
@@ -197,13 +199,14 @@ exports.editTask = asyncHandler(async (req, res, next) => {
     );
   }
 
-  for (const assignee of assigneeUsers) {
-    if (!isUserInProject(project, assignee.userId)) {
-      return next(
-        new ApiError("Assignee must be a member of this project", 400)
-      );
-    }
+for (const assignee of assigneeUsers) {
+  if (!isUserInProject(project, assignee.UserId)) {
+    return next(
+      new ApiError(`User ${assignee.UserId} is not a project member`, 400)
+    );
   }
+}
+
 
   if (name) task.title = name;
   if (description) task.description = description;
@@ -211,16 +214,10 @@ exports.editTask = asyncHandler(async (req, res, next) => {
   if (dueDate) task.dueDate = new Date(dueDate);
   if (typeof isCompleted === "boolean") task.isCompleted = isCompleted;
 
-  // Remove old assignees
-  await Assignee.deleteMany({ taskItemId: id });
-
-  // Add new assignees
   if (assigneeUsers && assigneeUsers.length > 0) {
-    const assigneeDocs = assigneeUsers.map((a) => ({
-      userId: a.userId,
-      taskItemId: id,
-    }));
-    await Assignee.insertMany(assigneeDocs);
+    task.assignedTo = assigneeUsers.map((a) => a.userId);
+  } else {
+    task.assignedTo = []; 
   }
 
   await task.save();
